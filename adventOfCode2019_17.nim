@@ -1,6 +1,8 @@
 
 import strutils
+import sequtils
 import sets
+import algorithm
 
 const
   gcInput = @[1i64, 330, 331, 332, 109, 6690, 1102, 1, 1182, 16, 1102, 1, 1505,
@@ -242,25 +244,25 @@ proc partOne =
         break
       of finish:
         var
-          lRow = ""
           lX, lY = 0i64
           lVideo: array[61, array[85, BiggestInt]]
+          lScaffolds: HashSet[tuple[x: BiggestInt, y: BiggestInt]]
+          lRobot: tuple[x: BiggestInt, y: BiggestInt, d: BiggestInt]
         while lMachine.output.len > 0:
           let lPixel = lMachine.output.pop
           if lPixel == 10:
-            echo lRow
-            lRow = ""
             lY += 1
             lX = 0
           else:
-            lRow.add(char(lPixel))
             lVideo[lY][lX] = lPixel
+            if lPixel == 35:
+              lScaffolds.incl((lX, lY))
+            elif lPixel != 46:
+              lRobot = (lX, lY, 0i64)
+
             lX += 1
-        if lRow.len > 0:
-          echo lRow
 
         for y in 1..59:
-          var lRow = ""
           for x in 1..83:
             if (lVideo[y][x] == 35) and
                 (lVideo[y+1][x] == 35) and
@@ -268,13 +270,68 @@ proc partOne =
                 (lVideo[y][x+1] == 35) and
                 (lVideo[y][x-1] == 35):
               lSum += x * y
-              lRow.add("OO")
-            else:
-              lRow.add($lVideo[y][x])
-          echo lRow
+        # echo lRobot
+        # echo lScaffolds
 
-        echo lX, " - ", lY
-        echo lSum
+        proc nextMove(r: tuple[x: BiggestInt, y: BiggestInt, d: BiggestInt]): (
+            tuple[x: BiggestInt, y: BiggestInt]) =
+          const nm = [[0i64, -1i64], [1i64, 0i64], [0i64, 1i64], [-1i64, 0i64]]
+          result = (r.x + nm[r.d][0], r.y + nm[r.d][1])
+
+        proc showScaffolds =
+          for y in 0i64..60:
+            var lRow = ""
+            for x in 0i64..84:
+              if lScaffolds.contains((x, y)):
+                lRow.add('#')
+              else:
+                if (lRobot.x == x) and (lRobot.y == y):
+                  const lRobotD = ["^", ">", "v", "<"]
+                  lRow.add(lRobotD[lRobot.d])
+                else:
+                  lRow.add(' ')
+            echo lRow
+
+        var
+          lInstructions: seq[string]
+          lRun = 0i64
+        while lScaffolds.len > 0:
+          # showScaffolds()
+          let lMove = nextMove(lRobot)
+          if lScaffolds.missingOrExcl(lMove):
+            if lScaffolds.contains(nextMove((lMove.x, lMove.y, lRobot.d))):
+              lScaffolds.incl((lMove.x, lMove.y))
+            else:
+              lRobot.d = (lRobot.d + 3) mod 4
+              if lScaffolds.contains(nextMove(lRobot)):
+                if lRun > 0:
+                  lInstructions.add($lRun)
+                  # echo lInstructions
+                  lRun = 0i64
+                lInstructions.add("L")
+                # echo lInstructions
+              else:
+                lRobot.d = (lRobot.d + 2) mod 4
+                if lScaffolds.contains(nextMove(lRobot)):
+                  if lRun > 0:
+                    lInstructions.add($lRun)
+                    # echo lInstructions
+                    lRun = 0i64
+                  lInstructions.add("R")
+                  # echo lInstructions
+                else:
+                  echo "Error !!!!"
+                  break
+          else:
+            lRobot.x = lMove.x
+            lRobot.y = lMove.y
+            lRun += 1
+        if lRun > 0:
+          lInstructions.add($lRun)
+          # echo lInstructions
+        # showScaffolds()
+        echo lInstructions
+
         break
       of error:
         break
@@ -282,8 +339,48 @@ proc partOne =
   echo "partOne ", lSum
 
 proc partTwo =
-  echo "partTwo ", 2
+  var
+    lPartTwoInput = """A,B,A,B,C,C,B,A,B,C
+L,10,R,10,L,10,L,10
+R,10,R,12,L,12
+R,12,L,12,R,6
+n
+""".mapIt(BiggestInt(it)).reversed()
+
+    lMachine: Machine = (ready,
+      lPartTwoInput,
+      gcInput,
+      0i64,
+      0i64,
+      @[])
+    lResult = -1i64
+
+  lMachine.memory[0] = 2i64
+  while true:
+    runProgram(lMachine)
+    case lMachine.status
+      of ready:
+        echo "---->  ready"
+        break
+      of waitInput:
+        echo "----> waitInput"
+        break
+      of finish:
+        echo "---->  finish"
+        while lMachine.output.len > 0:
+          let lPixel = lMachine.output.pop
+          if lPixel > 255:
+            lResult = lPixel
+          else:
+            write(stdout, char(lPixel))
+        flushFile(stdout)
+        break
+      of error:
+        echo "---->  error"
+        break
+
+  echo "partTwo ", lResult
 
 
 partOne() # 7720
-partTwo() # XXXX
+partTwo() # 1681189
